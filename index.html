@@ -1,16 +1,699 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Immersive Coffee Shop</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半见咖啡 - 人生苦短 咖啡倒满</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background-color: black;
+        }
+        .neo-brutalism-shadow {
+            box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+        }
+        .neo-brutalism-shadow-lg {
+            box-shadow: 8px 8px 0px 0px rgba(0,0,0,1);
+        }
+        .neo-brutalism-shadow-xl {
+            box-shadow: 16px 16px 0px 0px rgba(0,0,0,1);
+        }
+        .neo-brutalism-shadow-white {
+            box-shadow: 6px 6px 0px 0px rgba(255,255,255,1);
+        }
+        .transition-page {
+            transition: transform 0.8s cubic-bezier(0.645, 0.045, 0.355, 1), opacity 0.8s ease;
+        }
+        .marquee-text {
+            color: white;
+            opacity: 0.1;
+        }
+        @keyframes float {
+            0% { transform: translateY(0vh) rotate(0deg); }
+            100% { transform: translateY(-120vh) rotate(360deg); }
+        }
+        .particle {
+            position: absolute;
+            bottom: -10%;
+            animation: float linear infinite;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .halftone-overlay {
+            background-image: radial-gradient(circle, transparent 20%, #000 20%, #000 80%, transparent 80%, transparent);
+            background-size: 4px 4px;
+        }
+        /* Custom scrollbar for cart */
+        .cart-items::-webkit-scrollbar {
+            width: 8px;
+        }
+        .cart-items::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .cart-items::-webkit-scrollbar-thumb {
+            background: #000;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="border-8 border-black box-border h-screen w-screen">
+    <div id="app" class="relative w-full h-full overflow-hidden">
+        <!-- Particles Container -->
+        <div id="particles-container" class="absolute inset-0 pointer-events-none overflow-hidden z-10"></div>
 
+        <!-- Pages Container -->
+        <div id="pages-container" class="relative w-full h-full">
+            <!-- Content will be injected here -->
+        </div>
+
+        <!-- Pagination Indicators -->
+        <div id="pagination" class="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-50 pointer-events-auto"></div>
+
+        <!-- Floating Blind Box Button -->
+        <div class="absolute top-4 right-4 md:top-8 md:right-12 z-50 pointer-events-auto">
+            <button id="blind-box-btn" class="flex flex-col items-center gap-1 md:gap-2 group transition-transform hover:scale-110 active:scale-95">
+                <div class="w-10 h-10 md:w-20 md:h-20 bg-purple-500 rounded-2xl flex items-center justify-center border-2 md:border-4 border-black neo-brutalism-shadow-lg group-hover:translate-x-[2px] group-hover:translate-y-[2px] group-hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                    <i data-lucide="dices" class="w-6 h-6 md:w-12 md:h-12 text-white"></i>
+                </div>
+                <span class="text-[8px] md:text-sm font-black text-black tracking-widest bg-yellow-400 px-2 py-0.5 md:px-3 md:py-1 rounded-xl border-2 md:border-4 border-black neo-brutalism-shadow -rotate-6">
+                    盲盒点单!
+                </span>
+            </button>
+        </div>
+
+        <!-- Bottom Left: Cart Button -->
+        <div class="absolute bottom-4 left-4 md:bottom-12 md:left-12 z-50 pointer-events-auto">
+            <button id="cart-toggle-btn" class="relative p-3 md:p-6 bg-green-400 text-black rounded-full border-2 md:border-4 border-black neo-brutalism-shadow-lg hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                <i data-lucide="shopping-cart" class="w-6 h-6 md:w-10 md:h-10"></i>
+                <span id="cart-badge" class="hidden absolute -top-1 -right-1 md:-top-4 md:-right-4 bg-red-500 text-xs md:text-xl font-black w-6 h-6 md:w-10 md:h-10 rounded-full flex items-center justify-center border-2 md:border-4 border-black neo-brutalism-shadow rotate-12">0</span>
+            </button>
+        </div>
+
+        <!-- Bottom Right: Next Category Button -->
+        <button id="next-cat-btn" class="absolute bottom-4 right-4 md:bottom-12 md:right-12 group flex items-center gap-2 md:gap-4 bg-white border-2 md:border-4 border-black p-1.5 md:p-3 pr-3 md:pr-6 rounded-full z-40 neo-brutalism-shadow-lg hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all pointer-events-auto active:scale-95">
+            <div id="next-cat-img-container" class="w-8 h-8 md:w-16 md:h-16 rounded-full overflow-hidden border-2 md:border-4 border-black relative bg-yellow-400 flex items-center justify-center">
+                <!-- Next category image or icon -->
+            </div>
+            <div class="text-left flex flex-col">
+                <span class="text-[8px] md:text-xs text-black font-black uppercase tracking-widest mb-0.5 flex items-center gap-1">
+                    下一站 <i data-lucide="arrow-right" class="w-3 h-3 md:w-4 md:h-4 group-hover:translate-x-1 transition-transform"></i>
+                </span>
+                <span id="next-cat-title" class="text-xs md:text-xl font-black text-black tracking-wider">
+                    <!-- Next category title -->
+                </span>
+            </div>
+        </button>
+
+        <!-- Cart Drawer -->
+        <div id="cart-drawer-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"></div>
+        <div id="cart-drawer" class="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white border-l-8 border-black z-[70] flex flex-col text-black shadow-[-20px_0_0_0_rgba(0,0,0,0.2)] translate-x-full transition-transform duration-500 ease-in-out">
+            <div class="p-8 border-b-8 border-black flex justify-between items-center bg-yellow-400">
+                <h2 class="text-4xl font-black tracking-widest uppercase text-white" style="-webkit-text-stroke: 1px black; text-shadow: 4px 4px 0 #000">
+                    购物车
+                </h2>
+                <button id="close-cart-btn" class="p-1.5 md:p-2 bg-white border-4 border-black rounded-full hover:bg-gray-200 transition-colors neo-brutalism-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                    <i data-lucide="x" class="w-6 h-6 md:w-8 md:h-8"></i>
+                </button>
+            </div>
+            
+            <div id="cart-items-list" class="flex-1 overflow-y-auto p-6 flex flex-col gap-6 bg-blue-50 cart-items">
+                <!-- Cart items will be injected here -->
+            </div>
+
+            <div id="cart-footer" class="hidden p-8 border-t-8 border-black bg-pink-400">
+                <div class="flex justify-between items-end mb-6 bg-white p-4 rounded-2xl border-4 border-black neo-brutalism-shadow -rotate-1">
+                    <span class="text-xl font-black tracking-widest text-black">合计金额</span>
+                    <div class="flex items-baseline gap-1 text-red-500">
+                        <span class="text-3xl font-black">¥</span>
+                        <span id="cart-total-price" class="font-black text-5xl">0</span>
+                    </div>
+                </div>
+                <button class="w-full py-3 md:py-5 bg-yellow-400 text-black rounded-2xl border-4 border-black font-black tracking-[0.2em] text-xl md:text-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[4px] hover:translate-y-[4px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all active:scale-[0.98] rotate-1">
+                    去结算!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Data ---
+        const categoryOrder = ['Coffee', 'Specialty', 'Drinks', 'Activity', 'Brand'];
+        const categoryInfo = {
+            Coffee: { titleZh: '基础咖啡', titleEn: 'Coffee', color: 'bg-blue-400' },
+            Specialty: { titleZh: '特调咖啡', titleEn: 'Specialty', color: 'bg-pink-400' },
+            Drinks: { titleZh: '无咖饮品', titleEn: 'Drinks', color: 'bg-green-400' },
+            Activity: { titleZh: '最新活动', titleEn: 'Events', color: 'bg-red-400' },
+            Brand: { titleZh: '关于半见', titleEn: 'About', color: 'bg-yellow-400' },
+        };
+
+        const menuData = {
+            Coffee: [
+                { id: 'c1', nameZh: '生椰拿铁', nameEn: 'Coconut Latte', shortName: '生椰拿铁', desc: '店长强推！清甜椰乳碰撞浓缩咖啡，一口穿越到海南岛。', price: 16, originalPrice: 32, bg: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?auto=format&fit=crop&q=80&w=1920', tags: ['👍 招牌', '🧊 冰/热'], color: 'bg-cyan-400' },
+                { id: 'c2', nameZh: '茉莉花香拿铁', nameEn: 'Jasmine Latte', shortName: '茉莉拿铁', desc: '清雅茉莉花香与醇厚咖啡的奇妙相遇，仙女必点。', price: 18, originalPrice: 32, bg: 'https://images.unsplash.com/photo-1557006021-b85faa2bc5e2?auto=format&fit=crop&q=80&w=1920', tags: ['🌸 花香', '🧊 冰/热'], color: 'bg-fuchsia-400' },
+                { id: 'c3', nameZh: '椰青美式', nameEn: 'Coconut Americano', shortName: '椰青美式', desc: '100%纯椰青水打底，清爽解腻，早八人的续命水。', price: 16, originalPrice: 28, bg: 'https://images.unsplash.com/photo-1499638673689-79a0b5115d87?auto=format&fit=crop&q=80&w=1920', tags: ['🧊 仅冰饮', '🌊 清爽'], color: 'bg-teal-400' },
+                { id: 'c4', nameZh: '经典拿铁', nameEn: 'Classic Latte', shortName: '经典拿铁', desc: '丝滑牛奶与浓缩咖啡的完美交融，永远不会出错的选择。', price: 14, originalPrice: 28, bg: 'https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?auto=format&fit=crop&q=80&w=1920', tags: ['☕ 经典', '🧊 冰/热'], color: 'bg-orange-400' },
+            ],
+            Specialty: [
+                { id: 's1', nameZh: '话梅气泡美式', nameEn: 'Plum Sparkling', shortName: '话梅气泡', desc: '酸甜话梅搭配气泡水与浓缩，气泡在舌尖跳舞，夏日解暑YYDS！', price: 21, originalPrice: 41, bg: 'https://images.unsplash.com/photo-1611162458324-aae1eb4129a4?auto=format&fit=crop&q=80&w=1920', tags: ['👍 招牌', '🫧 气泡'], color: 'bg-rose-400' },
+                { id: 's2', nameZh: '桂花酒酿拿铁', nameEn: 'Osmanthus Latte', shortName: '桂花酒酿', desc: '江南风味的桂花酒酿融入拿铁，前调花香，后调微醺。', price: 22, originalPrice: 42, bg: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&q=80&w=1920', tags: ['🌸 招牌', '🧊 冰/热'], color: 'bg-amber-400' },
+                { id: 's3', nameZh: '橙C美式', nameEn: 'Orange Americano', shortName: '橙C美式', desc: '新鲜橙汁与浓缩咖啡的碰撞，果香四溢，维C满满。', price: 18, originalPrice: 36, bg: 'https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&q=80&w=1920', tags: ['🍊 果香'], color: 'bg-orange-500' },
+                { id: 's4', nameZh: 'Dirty', nameEn: 'Dirty Coffee', shortName: 'Dirty', desc: '大口吞咽！冰冷牛奶与热烈浓缩的极致温差体验。', price: 20, originalPrice: 38, bg: 'https://images.unsplash.com/photo-1578314675249-a6910f80cc4e?auto=format&fit=crop&q=80&w=1920', tags: ['🥛 浓郁', '🧊 仅冰饮'], color: 'bg-stone-500' },
+                { id: 's5', nameZh: '焦糖海盐拿铁', nameEn: 'Caramel Sea Salt Latte', shortName: '焦糖海盐', desc: '海盐的微咸激发焦糖的香甜，仿佛在海边吹拂微风。', price: 22, originalPrice: 42, bg: 'https://images.unsplash.com/photo-1559496417-e7f25cb247f3?auto=format&fit=crop&q=80&w=1920', tags: ['🌊 治愈'], color: 'bg-blue-500' },
+            ],
+            Drinks: [
+                { id: 'd1', nameZh: '抹茶厚椰乳', nameEn: 'Matcha Coconut', shortName: '抹茶厚椰', desc: '宇治抹茶的微苦中和了厚椰乳的甜腻，口感醇厚顺滑。', price: 20, originalPrice: 31, bg: 'https://images.unsplash.com/photo-1515823662972-da6a2e4d3002?auto=format&fit=crop&q=80&w=1920', tags: ['🧊 仅冰饮', '🍵 浓郁'], color: 'bg-lime-400' },
+                { id: 'd2', nameZh: '羽衣甘蓝', nameEn: 'Kale Juice', shortName: '羽衣甘蓝', desc: '健康达人首选！满满的花青素与维C，喝完感觉自己又行了。', price: 16, originalPrice: 29, bg: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&q=80&w=1920', tags: ['✨ 新品', '🥗 健康'], color: 'bg-emerald-400' },
+                { id: 'd3', nameZh: '话梅气泡水', nameEn: 'Plum Sparkling', shortName: '话梅气泡', desc: '不含咖啡因的酸甜气泡水，清爽解渴，打嗝都是话梅味。', price: 9.9, originalPrice: 12, bg: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&q=80&w=1920', tags: ['🧊 仅冰饮'], color: 'bg-pink-300' },
+                { id: 'd4', nameZh: '巧克力可可', nameEn: 'Chocolate Cocoa', shortName: '巧克力可可', desc: '纯正可可粉冲泡，丝滑浓郁，大姨妈期间的救星。', price: 16, originalPrice: 28, bg: 'https://images.unsplash.com/photo-1542990253-0d0f5be5f0ed?auto=format&fit=crop&q=80&w=1920', tags: ['🍫 丝滑', '🧊 冰/热'], color: 'bg-orange-500' },
+            ],
+            Activity: [],
+            Brand: []
+        };
+
+        const emojis = ['☕', '✨', '🔥', '🧊', '🍩', '🍪', '🥛', '🥤', '🎉', '💖'];
+
+        // --- State ---
+        let activeCategory = 'Coffee';
+        let activeProduct = menuData['Coffee'][0];
+        let cart = [];
+        let isScrolling = false;
+        let isCartOpen = false;
+        let touchStart = null;
+
+        // --- DOM Elements ---
+        const pagesContainer = document.getElementById('pages-container');
+        const paginationContainer = document.getElementById('pagination');
+        const particlesContainer = document.getElementById('particles-container');
+        const cartDrawer = document.getElementById('cart-drawer');
+        const cartOverlay = document.getElementById('cart-drawer-overlay');
+        const cartItemsList = document.getElementById('cart-items-list');
+        const cartBadge = document.getElementById('cart-badge');
+        const cartTotalPriceEl = document.getElementById('cart-total-price');
+        const cartFooter = document.getElementById('cart-footer');
+        const nextCatBtn = document.getElementById('next-cat-btn');
+        const nextCatImgContainer = document.getElementById('next-cat-img-container');
+        const nextCatTitle = document.getElementById('next-cat-title');
+
+        // --- Initialization ---
+        function init() {
+            renderPagination();
+            renderParticles();
+            renderPage();
+            updateCartUI();
+            setupEventListeners();
+            lucide.createIcons();
+        }
+
+        function renderPagination() {
+            paginationContainer.innerHTML = categoryOrder.map((cat, i) => `
+                <button onclick="goToPage(${i})" 
+                    class="w-3 h-3 md:w-4 md:h-4 rounded-full border-2 border-black transition-all duration-300 ${
+                        activeCategory === cat 
+                        ? `${categoryInfo[cat].color} scale-150 neo-brutalism-shadow` 
+                        : 'bg-white opacity-40 hover:opacity-100'
+                    }"
+                    title="${categoryInfo[cat].titleZh}">
+                </button>
+            `).join('');
+        }
+
+        function renderParticles() {
+            particlesContainer.innerHTML = Array.from({ length: 12 }).map((_, i) => {
+                const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                const left = `${Math.random() * 100}%`;
+                const duration = 15 + Math.random() * 25;
+                const delay = -Math.random() * 20;
+                const size = 1.2 + Math.random() * 1.5;
+                return `
+                    <div class="particle" style="left: ${left}; font-size: ${size}rem; animation-duration: ${duration}s; animation-delay: ${delay}s;">
+                        ${emoji}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function goToPage(index) {
+            if (isScrolling || isCartOpen) return;
+            
+            const currentIndex = categoryOrder.indexOf(activeCategory);
+            let newIndex = index;
+            let direction = 'down';
+
+            if (index < 0) {
+                newIndex = categoryOrder.length - 1;
+                direction = 'up';
+            } else if (index >= categoryOrder.length) {
+                newIndex = 0;
+                direction = 'down';
+            } else {
+                direction = newIndex > currentIndex ? 'down' : 'up';
+            }
+
+            if (newIndex === currentIndex) return;
+
+            isScrolling = true;
+            const nextCat = categoryOrder[newIndex];
+            
+            // Update state before rendering
+            activeCategory = nextCat;
+            if (nextCat !== 'Brand' && nextCat !== 'Activity') {
+                activeProduct = menuData[nextCat][0];
+            }
+
+            // Animation logic
+            const oldPage = pagesContainer.querySelector('.page-content');
+            const newPageHtml = createPageHtml(nextCat);
+            
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newPageHtml;
+            const newPage = tempDiv.firstElementChild;
+            
+            // Set initial position for new page
+            newPage.style.transform = direction === 'down' ? 'translateY(100%)' : 'translateY(-100%)';
+            newPage.style.opacity = '0';
+            newPage.style.zIndex = '20';
+            pagesContainer.appendChild(newPage);
+
+            // Trigger reflow
+            newPage.offsetHeight;
+
+            // Animate
+            if (oldPage) {
+                oldPage.style.transform = direction === 'down' ? 'translateY(-100%)' : 'translateY(100%)';
+                oldPage.style.opacity = '0';
+                oldPage.style.zIndex = '10';
+            }
+            newPage.style.transform = 'translateY(0)';
+            newPage.style.opacity = '1';
+
+            setTimeout(() => {
+                // Remove all other pages to be safe
+                const allPages = pagesContainer.querySelectorAll('.page-content');
+                allPages.forEach(p => {
+                    if (p !== newPage) p.remove();
+                });
+                isScrolling = false;
+                renderPagination();
+                updateNextCatBtn();
+                lucide.createIcons();
+            }, 800);
+        }
+
+        function createPageHtml(cat) {
+            if (cat === 'Activity') {
+                return `
+                    <div class="page-content transition-page absolute inset-0 w-full h-full bg-red-500 flex flex-col items-center justify-center overflow-hidden">
+                        <div class="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&q=80&w=1920')] bg-cover bg-center mix-blend-multiply"></div>
+                        <div class="relative z-20 flex flex-col items-center w-full max-w-4xl px-4">
+                            <h1 class="text-3xl md:text-8xl font-black mb-6 md:mb-8 tracking-tighter text-white uppercase -rotate-2">
+                                🔥 最新活动 🔥
+                            </h1>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6 w-full mb-4 md:mb-8">
+                                <div class="bg-yellow-400 p-3 md:p-6 rounded-3xl border-2 md:border-4 border-black neo-brutalism-shadow-lg flex flex-col items-center text-center hover:scale-105 transition-transform">
+                                    <div class="text-3xl md:text-6xl mb-2 md:mb-4">🎓</div>
+                                    <h3 class="text-lg md:text-2xl font-black text-black mb-1 md:mb-2">师生专属福利</h3>
+                                    <p class="text-black text-[10px] md:text-base font-bold leading-tight">凭校内证件，经典美式仅需 5.9 元！</p>
+                                </div>
+                                <div class="bg-green-400 p-3 md:p-6 rounded-3xl border-2 md:border-4 border-black neo-brutalism-shadow-lg flex flex-col items-center text-center hover:scale-105 transition-transform">
+                                    <div class="text-3xl md:text-6xl mb-2 md:mb-4">🍋</div>
+                                    <h3 class="text-lg md:text-2xl font-black text-black mb-1 md:mb-2">清爽果茶特惠</h3>
+                                    <p class="text-black text-[10px] md:text-base font-bold leading-tight">柠檬茶与纯茶系列，全天候 3.8 元！</p>
+                                </div>
+                                <div class="bg-blue-400 p-3 md:p-6 rounded-3xl border-2 md:border-4 border-black neo-brutalism-shadow-lg flex flex-col items-center text-center hover:scale-105 transition-transform">
+                                    <div class="text-3xl md:text-6xl mb-2 md:mb-4">📸</div>
+                                    <h3 class="text-lg md:text-2xl font-black text-black mb-1 md:mb-2">打卡立减</h3>
+                                    <p class="text-black text-[10px] md:text-base font-bold leading-tight">朋友圈发文案带定位，买单立减 1 元！</p>
+                                </div>
+                            </div>
+                            <div class="w-full bg-purple-400 p-3 md:p-6 rounded-3xl border-2 md:border-4 border-black neo-brutalism-shadow-lg flex flex-col md:flex-row items-center justify-between gap-3 md:gap-6 hover:scale-[1.02] transition-transform">
+                                <div class="flex items-center gap-2 md:gap-4">
+                                    <div class="text-3xl md:text-6xl">🌙</div>
+                                    <div class="text-left">
+                                        <h3 class="text-lg md:text-3xl font-black text-black mb-0.5 md:mb-1">线下活动：睡衣派对</h3>
+                                        <p class="text-black font-bold text-[10px] md:text-lg leading-tight">本周五晚 20:00，穿睡衣到店打卡，免费送特调一杯！</p>
+                                    </div>
+                                </div>
+                                <button class="whitespace-nowrap bg-black text-white font-black text-xs md:text-xl px-4 md:px-8 py-2 md:py-4 rounded-full hover:bg-white hover:text-black hover:border-2 md:hover:border-4 hover:border-black transition-colors">
+                                    立即报名
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (cat === 'Brand') {
+                return `
+                    <div class="page-content transition-page absolute inset-0 w-full h-full bg-yellow-300 flex flex-col items-center justify-center overflow-hidden">
+                        <div class="absolute inset-0 opacity-40 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&q=80&w=1920')] bg-cover bg-center mix-blend-multiply"></div>
+                        <div class="relative z-20 flex flex-col items-center text-center p-5 md:p-10 bg-white border-4 md:border-8 border-black neo-brutalism-shadow-xl rounded-3xl max-w-2xl w-full mx-4">
+                            <div class="mb-3 md:mb-6 bg-yellow-400 p-3 md:p-6 rounded-full border-2 md:border-4 border-black neo-brutalism-shadow-lg animate-bounce">
+                                <i data-lucide="coffee" class="w-8 h-8 md:w-20 md:h-20 text-black"></i>
+                            </div>
+                            <h1 class="text-3xl md:text-8xl font-black mb-1 md:mb-4 tracking-tighter text-black uppercase">
+                                半见咖啡
+                            </h1>
+                            <h2 class="text-lg md:text-5xl font-black mb-4 md:mb-10 tracking-widest text-black bg-pink-400 px-3 md:px-6 py-1 md:py-2 border-2 md:border-4 border-black neo-brutalism-shadow -rotate-2">
+                                人生苦短 咖啡倒满
+                            </h2>
+                            <div class="flex flex-col gap-3 md:gap-6 w-full text-lg md:text-xl font-bold">
+                                <div class="flex items-center justify-center gap-2 md:gap-4 bg-blue-300 p-3 md:p-5 rounded-2xl border-2 md:border-4 border-black neo-brutalism-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                                    <i data-lucide="map-pin" class="text-black w-5 h-5 md:w-8 md:h-8"></i>
+                                    <span class="text-black text-xs md:text-base">北京信息技术学院13号楼103</span>
+                                </div>
+                                <div class="flex items-center justify-center gap-2 md:gap-4 bg-green-300 p-3 md:p-5 rounded-2xl border-2 md:border-4 border-black neo-brutalism-shadow hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                                    <i data-lucide="phone" class="text-black w-5 h-5 md:w-8 md:h-8"></i>
+                                    <span class="font-black text-lg md:text-2xl tracking-wider text-black">17813117924</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Product Categories
+            const products = menuData[cat];
+            return `
+                <div class="page-content transition-page absolute inset-0 w-full h-full bg-black overflow-hidden">
+                    <!-- Background -->
+                    <div class="absolute inset-0 w-full h-full">
+                        <img src="${activeProduct.bg}" class="w-full h-full object-cover opacity-100 transition-all duration-800" alt="${activeProduct.nameZh}">
+                        <div class="absolute inset-0 halftone-overlay opacity-10 mix-blend-overlay pointer-events-none"></div>
+                        <div class="absolute inset-0 flex flex-col justify-around opacity-15 pointer-events-none overflow-hidden -rotate-12 scale-150">
+                            ${Array.from({ length: 5 }).map((_, i) => `
+                                <div class="marquee-text whitespace-nowrap text-9xl font-black uppercase tracking-tighter" style="animation: marquee ${20 + i * 2}s linear infinite ${i % 2 === 0 ? '' : 'reverse'}">
+                                    早八续命 • 拒绝内卷 • 摸鱼万岁 • 咖啡哪有上班苦 • 熬夜冠军 • 随时发疯 • 早八续命 • 拒绝内卷 • 摸鱼万岁 • 咖啡哪有上班苦 • 熬夜冠军 • 随时发疯 •
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent pointer-events-none"></div>
+
+                    <!-- Content -->
+                    <div class="absolute inset-0 flex flex-col pointer-events-none p-6 md:p-12 lg:p-20">
+                        <div class="inline-flex items-center gap-2 md:gap-3 px-4 md:px-6 py-2 md:py-3 rounded-2xl ${categoryInfo[cat].color} border-4 border-black text-black w-max mb-6 md:mb-8 pointer-events-auto neo-brutalism-shadow">
+                            <i data-lucide="flame" class="w-4 h-4 md:w-6 md:h-6 text-black"></i>
+                            <span class="text-base md:text-xl font-black tracking-widest">${categoryInfo[cat].titleZh}</span>
+                            <span class="text-[10px] md:text-sm font-black bg-black text-white px-1.5 py-0.5 md:px-2 md:py-1 rounded-md">| ${categoryInfo[cat].titleEn}</span>
+                        </div>
+
+                        <div class="flex-1 flex flex-col justify-center max-w-full md:max-w-2xl pointer-events-auto z-30 pr-16 md:pr-0">
+                            <div class="flex flex-wrap gap-2 md:gap-3 mb-6 md:mb-8">
+                                ${activeProduct.tags.map(tag => `
+                                    <span class="px-2 md:px-4 py-1 md:py-2 bg-yellow-400 text-black border-2 md:border-4 border-black neo-brutalism-shadow rounded-xl text-[10px] md:text-sm font-black tracking-wider -rotate-2 hover:rotate-2 transition-transform">
+                                        ${tag}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            
+                            <div class="flex flex-col gap-4 mb-8 md:mb-12">
+                                <h1 class="text-5xl md:text-8xl font-black text-white leading-tight tracking-tighter uppercase">
+                                    ${activeProduct.nameZh}
+                                </h1>
+                                <div class="relative w-max">
+                                    <h2 class="text-xl md:text-4xl text-white font-black tracking-wider bg-black inline-block px-4 md:px-6 py-2 border-2 md:border-4 border-white -rotate-1">
+                                        ${activeProduct.nameEn}
+                                    </h2>
+                                </div>
+                            </div>
+
+                            <p class="text-sm md:text-xl text-black font-bold mb-8 md:mb-12 max-w-lg leading-relaxed bg-white p-5 md:p-8 rounded-2xl border-2 md:border-4 border-black">
+                                ${activeProduct.desc}
+                            </p>
+                            
+                            <div class="flex flex-col md:flex-row items-start md:items-end gap-6 md:gap-8 mb-16">
+                                <div class="flex flex-col bg-white p-3 md:p-4 rounded-2xl border-2 md:border-4 border-black rotate-2">
+                                    <span class="text-xs md:text-lg text-gray-500 line-through font-black mb-[-4px]">原价 ¥${activeProduct.originalPrice}</span>
+                                    <div class="flex items-baseline gap-1 text-red-500">
+                                        <span class="text-2xl md:text-4xl font-black">¥</span>
+                                        <span class="text-5xl md:text-7xl font-black tracking-tighter">${activeProduct.price}</span>
+                                    </div>
+                                </div>
+                                <button onclick="addToCart('${activeProduct.id}', event)" class="group px-5 md:px-8 py-3 md:py-6 bg-yellow-400 text-black rounded-2xl border-2 md:border-4 border-black font-black tracking-widest text-base md:text-2xl flex items-center gap-3 neo-brutalism-shadow-lg hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all md:ml-4 -rotate-2 active:scale-95">
+                                    <i data-lucide="shopping-cart" class="w-5 h-5 md:w-8 md:h-8"></i>
+                                    加入购物车!
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Product Selector -->
+                        <div class="absolute right-2 md:right-12 top-1/2 -translate-y-1/2 flex flex-col gap-2 md:gap-6 pointer-events-auto z-40">
+                            ${products.map((prod, index) => `
+                                <button onclick="selectProduct('${prod.id}')" 
+                                    class="relative flex items-center gap-2 md:gap-4 p-1 md:p-3 rounded-2xl border-2 md:border-4 border-black transition-all duration-200 group ${
+                                        activeProduct.id === prod.id 
+                                        ? `${prod.color} neo-brutalism-shadow-lg translate-x-[-5px] md:translate-x-[-10px]` 
+                                        : 'bg-white neo-brutalism-shadow'
+                                    }">
+                                    <div class="w-8 h-8 md:w-16 md:h-16 rounded-xl overflow-hidden border-2 md:border-4 border-black bg-white">
+                                        <img src="${prod.bg}" alt="${prod.shortName}" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="text-left hidden md:block pr-6">
+                                        <div class="font-black tracking-wider text-xl text-black">${prod.shortName}</div>
+                                        <div class="flex items-center gap-2 mt-1 bg-black text-white px-2 py-0.5 rounded-md w-max">
+                                            <span class="text-sm font-black">¥${prod.price}</span>
+                                        </div>
+                                    </div>
+                                    ${activeProduct.id === prod.id ? `
+                                        <div class="absolute -top-2 -right-2 md:-top-4 md:-right-4 text-yellow-400 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
+                                            <i data-lucide="sparkles" class="w-6 h-6 md:w-10 md:h-10 fill-yellow-400"></i>
+                                        </div>
+                                    ` : ''}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPage() {
+            pagesContainer.innerHTML = createPageHtml(activeCategory);
+            updateNextCatBtn();
+            lucide.createIcons();
+        }
+
+        function updateNextCatBtn() {
+            const currentIndex = categoryOrder.indexOf(activeCategory);
+            const nextIndex = (currentIndex + 1) % categoryOrder.length;
+            const nextCat = categoryOrder[nextIndex];
+            const info = categoryInfo[nextCat];
+
+            nextCatTitle.textContent = info.titleZh;
+            
+            if (nextCat === 'Brand' || nextCat === 'Activity') {
+                nextCatImgContainer.innerHTML = `<i data-lucide="coffee" class="w-4 h-4 md:w-8 md:h-8 text-black"></i>`;
+            } else {
+                const firstProd = menuData[nextCat][0];
+                nextCatImgContainer.innerHTML = `<img src="${firstProd.bg}" alt="Next" class="w-full h-full object-cover">`;
+            }
+            lucide.createIcons();
+        }
+
+        function selectProduct(id) {
+            const product = menuData[activeCategory].find(p => p.id === id);
+            if (product) {
+                activeProduct = product;
+                renderPage();
+            }
+        }
+
+        // --- Cart Logic ---
+        function addToCart(id, event) {
+            const product = menuData[activeCategory].find(p => p.id === id);
+            if (!product) return;
+
+            const existing = cart.find(item => item.product.id === id);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                cart.push({ product, quantity: 1 });
+            }
+
+            updateCartUI();
+
+            if (event) {
+                const rect = event.target.getBoundingClientRect();
+                const x = (rect.left + rect.width / 2) / window.innerWidth;
+                const y = (rect.top + rect.height / 2) / window.innerHeight;
+                confetti({
+                    particleCount: 50,
+                    spread: 80,
+                    origin: { x, y },
+                    colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'],
+                    zIndex: 100,
+                });
+            }
+        }
+
+        function updateQuantity(id, delta) {
+            const item = cart.find(i => i.product.id === id);
+            if (item) {
+                item.quantity += delta;
+                if (item.quantity <= 0) {
+                    cart = cart.filter(i => i.product.id !== id);
+                }
+            }
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const totalCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+            const totalPrice = cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+
+            if (totalCount > 0) {
+                cartBadge.textContent = totalCount;
+                cartBadge.classList.remove('hidden');
+                cartFooter.classList.remove('hidden');
+            } else {
+                cartBadge.classList.add('hidden');
+                cartFooter.classList.add('hidden');
+            }
+
+            cartTotalPriceEl.textContent = totalPrice.toFixed(1);
+
+            if (cart.length === 0) {
+                cartItemsList.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full opacity-60">
+                        <i data-lucide="shopping-cart" class="w-24 h-24 mb-6 text-black"></i>
+                        <p class="text-2xl font-black tracking-widest text-black">购物车空空如也</p>
+                        <p class="text-lg mt-2 font-bold bg-black text-white px-4 py-1 rounded-lg">快去选购吧!</p>
+                    </div>
+                `;
+            } else {
+                cartItemsList.innerHTML = cart.map(item => `
+                    <div class="flex items-center gap-4 ${item.product.color} p-4 rounded-2xl border-4 border-black neo-brutalism-shadow">
+                        <img src="${item.product.bg}" alt="${item.product.nameZh}" class="w-20 h-20 object-cover rounded-xl border-4 border-black bg-white">
+                        <div class="flex-1">
+                            <h3 class="font-black text-xl mb-1 tracking-wider text-black">${item.product.shortName}</h3>
+                            <div class="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border-2 border-black w-max">
+                                <p class="text-lg font-black text-red-500">¥${item.product.price}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 bg-white rounded-xl px-1.5 py-1.5 md:px-2 md:py-2 border-4 border-black neo-brutalism-shadow">
+                            <button onclick="updateQuantity('${item.product.id}', -1)" class="p-0.5 md:p-1 hover:bg-gray-200 rounded-lg transition-colors">
+                                <i data-lucide="minus" class="w-4 h-4 md:w-5 md:h-5"></i>
+                            </button>
+                            <span class="w-5 md:w-6 text-center font-black text-base md:text-lg">${item.quantity}</span>
+                            <button onclick="updateQuantity('${item.product.id}', 1)" class="p-0.5 md:p-1 hover:bg-gray-200 rounded-lg transition-colors">
+                                <i data-lucide="plus" class="w-4 h-4 md:w-5 md:h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            lucide.createIcons();
+        }
+
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            // Wheel
+            window.addEventListener('wheel', (e) => {
+                if (isCartOpen) return;
+                if (Math.abs(e.deltaY) < 30) return;
+                const currentIndex = categoryOrder.indexOf(activeCategory);
+                if (e.deltaY > 0) {
+                    goToPage(currentIndex + 1);
+                } else {
+                    goToPage(currentIndex - 1);
+                }
+            });
+
+            // Keydown
+            window.addEventListener('keydown', (e) => {
+                if (isCartOpen) return;
+                const currentIndex = categoryOrder.indexOf(activeCategory);
+                if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+                    goToPage(currentIndex + 1);
+                } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+                    goToPage(currentIndex - 1);
+                }
+            });
+
+            // Touch
+            window.addEventListener('touchstart', (e) => {
+                if (isCartOpen) return;
+                touchStart = e.touches[0].clientY;
+            });
+
+            window.addEventListener('touchend', (e) => {
+                if (touchStart === null || isCartOpen) return;
+                const touchEnd = e.changedTouches[0].clientY;
+                const diff = touchStart - touchEnd;
+                const currentIndex = categoryOrder.indexOf(activeCategory);
+                if (Math.abs(diff) > 50) {
+                    if (diff > 0) {
+                        goToPage(currentIndex + 1);
+                    } else {
+                        goToPage(currentIndex - 1);
+                    }
+                }
+                touchStart = null;
+            });
+
+            // Cart Toggle
+            document.getElementById('cart-toggle-btn').addEventListener('click', () => {
+                isCartOpen = true;
+                cartDrawer.classList.remove('translate-x-full');
+                cartOverlay.classList.remove('hidden');
+            });
+
+            document.getElementById('close-cart-btn').addEventListener('click', () => {
+                isCartOpen = false;
+                cartDrawer.classList.add('translate-x-full');
+                cartOverlay.classList.add('hidden');
+            });
+
+            cartOverlay.addEventListener('click', () => {
+                isCartOpen = false;
+                cartDrawer.classList.add('translate-x-full');
+                cartOverlay.classList.add('hidden');
+            });
+
+            // Next Category Button
+            nextCatBtn.addEventListener('click', () => {
+                const currentIndex = categoryOrder.indexOf(activeCategory);
+                goToPage(currentIndex + 1);
+            });
+
+            // Blind Box
+            document.getElementById('blind-box-btn').addEventListener('click', () => {
+                const validCategories = ['Coffee', 'Specialty', 'Drinks'];
+                const randomCat = validCategories[Math.floor(Math.random() * validCategories.length)];
+                const products = menuData[randomCat];
+                const randomProd = products[Math.floor(Math.random() * products.length)];
+                
+                activeCategory = randomCat;
+                activeProduct = randomProd;
+                renderPage();
+                renderPagination();
+                
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'],
+                });
+            });
+        }
+
+        // --- Marquee Animation ---
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes marquee {
+                0% { transform: translateX(0%); }
+                100% { transform: translateX(-50%); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // --- Start ---
+        init();
+    </script>
+</body>
+</html>
